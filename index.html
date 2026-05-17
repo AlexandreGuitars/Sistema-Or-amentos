@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alexandre Guitars — Sistema</title>
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -129,7 +130,8 @@ function renderLista() {
       <div class="orc-info"><div class="orc-cli">${o.cliente||'--'}</div><div class="orc-sub">${o.instrumento||'--'} &middot; ${dt}</div></div>
       <div class="orc-tot">${fmt(o.total||0)}</div>
       <div class="orc-st" style="background:${st.bg}25;color:${st.bg};border:0.5px solid ${st.bg}60">${st.label}</div>
-      <button class="orc-del" onclick="event.stopPropagation();delOrc('${o.id}')">x</button>
+      <button class="orc-os" onclick="event.stopPropagation();gerarOS('${o.id}')" title="Gerar OS">OS</button>
+      <button class="orc-del" onclick="event.stopPropagation();delOrc('${o.id}')" title="Excluir">x</button>
     </div>`;
   }).join('');
 }
@@ -306,6 +308,232 @@ function setValue(id, val) {
 
 function fmt(v) { return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+window.gerarOS = (id) => {
+  const o = id ? orcamentos.find(x=>x.id===id) : buildCurrentOrc();
+  if (!o) { toast('Salve o orcamento primeiro.','error'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+
+  const pageW = 210;
+  const marginL = 18;
+  const marginR = 18;
+  const cw = pageW - marginL - marginR;
+  let y = 14;
+
+  // ── CORES ──
+  const BURNT   = [200, 81, 26];
+  const BLK     = [26, 5, 0];
+  const CREAM   = [240, 230, 208];
+  const MUTED   = [160, 128, 96];
+  const LIGHT   = [245, 237, 224];
+  const ALTROW  = [251, 245, 236];
+
+  const setFont = (size, style='normal', color=BLK) => {
+    doc.setFontSize(size);
+    doc.setFont('helvetica', style);
+    doc.setTextColor(...color);
+  };
+
+  const hline = (yy, color=BURNT, thickness=0.4) => {
+    doc.setDrawColor(...color);
+    doc.setLineWidth(thickness);
+    doc.line(marginL, yy, marginL+cw, yy);
+  };
+
+  const rect = (x,yy,w,h,fillColor) => {
+    doc.setFillColor(...fillColor);
+    doc.setDrawColor(0,0,0,0);
+    doc.rect(x,yy,w,h,'F');
+  };
+
+  // ── HEADER ──
+  setFont(22,'bold', BLK);
+  doc.text('Alexandre', marginL, y);
+  setFont(11,'normal', BURNT);
+  doc.text('G u i t a r s', marginL, y+7);
+  setFont(8,'normal', MUTED);
+  doc.text('Reparo - Customizacao - Manutencao de Instrumentos de Corda', marginL, y+13);
+
+  // OS box top right
+  const osX = marginL + cw - 65;
+  setFont(8,'bold', BURNT);
+  doc.text('ORDEM DE SERVICO', marginL+cw, y, {align:'right'});
+  setFont(13,'bold', BLK);
+  const numStr = '#' + String(o.numero||0).padStart(4,'0');
+  doc.text(numStr, marginL+cw, y+8, {align:'right'});
+  const dt = new Date().toLocaleDateString('pt-BR');
+  setFont(8,'normal', MUTED);
+  doc.text('Data: '+dt, marginL+cw, y+14, {align:'right'});
+  const st = (o.status||'pendente').toUpperCase();
+  doc.text('Status: '+st, marginL+cw, y+19, {align:'right'});
+
+  y += 22;
+  hline(y, BURNT, 0.8);
+  y += 5;
+
+  // ── CLIENTE ──
+  const section = (title, yy) => {
+    rect(marginL, yy-4, cw, 7, BLK);
+    setFont(7,'bold', CREAM);
+    doc.text(title.toUpperCase(), marginL+3, yy);
+    return yy+6;
+  };
+
+  y = section('1. Dados do Cliente', y);
+
+  const field = (label, value, x, yy, w) => {
+    setFont(7,'normal', MUTED);
+    doc.text(label, x, yy);
+    setFont(9,'normal', BLK);
+    doc.text(String(value||'--'), x, yy+5);
+    doc.setDrawColor(...MUTED);
+    doc.setLineWidth(0.2);
+    doc.line(x, yy+6, x+w, yy+6);
+  };
+
+  field('Nome', o.cliente, marginL, y, cw/2-4);
+  field('WhatsApp', o.telefone, marginL+cw/2+2, y, cw/2-2);
+  y += 12;
+  field('E-mail', o.email, marginL, y, cw);
+  y += 14;
+
+  // ── INSTRUMENTO ──
+  y = section('2. Instrumento', y);
+  field('Tipo', o.tipoInstrumento, marginL, y, cw/3-3);
+  field('Marca', o.marca, marginL+cw/3+1, y, cw/3-3);
+  field('Modelo', o.modelo, marginL+(cw/3)*2+2, y, cw/3-2);
+  y += 14;
+
+  // ── PROBLEMA ──
+  y = section('3. Diagnostico / Problema', y);
+  setFont(8,'normal', BLK);
+  const probLines = doc.splitTextToSize(o.problema||'Nao informado', cw-4);
+  doc.text(probLines, marginL+2, y+1);
+  y += Math.max(10, probLines.length*4) + 4;
+
+  // ── SERVICOS ──
+  y = section('4. Servicos Realizados', y);
+
+  // Table header
+  rect(marginL, y-1, cw, 7, [46, 26, 8]);
+  setFont(7,'bold', CREAM);
+  doc.text('Servico', marginL+3, y+4);
+  doc.text('Qtd', marginL+cw-30, y+4, {align:'right'});
+  doc.text('Valor', marginL+cw-2, y+4, {align:'right'});
+  y += 8;
+
+  const servicos = o.servicos||[];
+  servicos.forEach((s,i) => {
+    if (i%2===0) rect(marginL, y-1, cw, 7, ALTROW);
+    setFont(8,'normal', BLK);
+    doc.text(s.name||'', marginL+3, y+4);
+    setFont(8,'normal', MUTED);
+    doc.text(String(s.qty||1)+'x', marginL+cw-30, y+4, {align:'right'});
+    setFont(8,'bold', BURNT);
+    doc.text(fmt(s.price*(s.qty||1)), marginL+cw-2, y+4, {align:'right'});
+    doc.setDrawColor(...LIGHT);
+    doc.setLineWidth(0.2);
+    doc.line(marginL, y+6, marginL+cw, y+6);
+    y += 7;
+  });
+
+  if (!servicos.length) {
+    setFont(8,'normal', MUTED);
+    doc.text('Nenhum servico registrado.', marginL+3, y+4);
+    y += 8;
+  }
+
+  // Totals
+  y += 2;
+  if (o.desconto>0) {
+    rect(marginL, y-1, cw, 6, LIGHT);
+    setFont(8,'normal', MUTED);
+    doc.text('Subtotal', marginL+3, y+3);
+    setFont(8,'normal', BLK);
+    doc.text(fmt(o.subtotal||0), marginL+cw-2, y+3, {align:'right'});
+    y += 7;
+    rect(marginL, y-1, cw, 6, LIGHT);
+    setFont(8,'normal', MUTED);
+    doc.text('Desconto', marginL+3, y+3);
+    setFont(8,'normal', [139,58,10]);
+    doc.text('- '+fmt(o.desconto||0), marginL+cw-2, y+3, {align:'right'});
+    y += 7;
+  }
+  rect(marginL, y-1, cw, 8, BLK);
+  setFont(9,'bold', CREAM);
+  doc.text('TOTAL', marginL+3, y+4);
+  setFont(11,'bold', [232,137,10]);
+  doc.text(fmt(o.total||0), marginL+cw-2, y+4, {align:'right'});
+  y += 12;
+
+  // ── PRAZO ──
+  y = section('5. Prazo e Condicoes', y);
+  field('Previsao de entrega', o.prazo||'A combinar', marginL, y, cw/2-4);
+  y += 14;
+
+  // Obs
+  if (o.obs) {
+    setFont(7,'normal', MUTED);
+    doc.text('Observacoes:', marginL, y);
+    setFont(8,'normal', BLK);
+    const obsLines = doc.splitTextToSize(o.obs, cw-4);
+    doc.text(obsLines, marginL, y+5);
+    y += obsLines.length*4 + 8;
+  }
+
+  // ── ASSINATURAS ──
+  if (y > 230) { doc.addPage(); y = 20; }
+  else y += 4;
+
+  y = section('6. Assinaturas', y);
+  doc.setDrawColor(...MUTED);
+  doc.setLineWidth(0.4);
+  const sigW = cw/2 - 10;
+  doc.line(marginL, y+20, marginL+sigW, y+20);
+  doc.line(marginL+sigW+20, y+20, marginL+cw, y+20);
+  setFont(7,'normal', MUTED);
+  doc.text('Assinatura do Cliente', marginL+sigW/2, y+24, {align:'center'});
+  doc.text('Alexandre Guitars - Responsavel', marginL+sigW+20+sigW/2, y+24, {align:'center'});
+  y += 30;
+
+  // ── FOOTER ──
+  hline(y, BURNT, 0.5);
+  y += 4;
+  setFont(7,'normal', MUTED);
+  doc.text('Alexandre Guitars  |  @alexandreguitarsluthieria  |  (11) 99339-4130  |  contato@alexandreguitars.com.br', pageW/2, y, {align:'center'});
+  doc.text('Garantia de 30 dias em todos os servicos realizados  |  Lapa - Sao Paulo, SP', pageW/2, y+4, {align:'center'});
+
+  // SAVE
+  doc.save('OS-'+numStr.replace('#','')+'-'+( o.cliente||'cliente').replace(/\s+/g,'-')+'.pdf');
+  toast('OS gerada em PDF!');
+};
+
+function buildCurrentOrc() {
+  const nome = document.getElementById('f-nome')?.value?.trim();
+  if (!nome) return null;
+  const desc   = parseFloat(document.getElementById('f-desc')?.value)||0;
+  const srvArr = Object.entries(selectedSrvs).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty}));
+  const sub    = srvArr.reduce((a,s)=>a+s.price*s.qty,0);
+  return {
+    numero: (orcamentos[0]?.numero||0)+1,
+    cliente: nome,
+    telefone: document.getElementById('f-tel')?.value||'',
+    email: document.getElementById('f-email')?.value||'',
+    tipoInstrumento: document.getElementById('f-tipo')?.value||'',
+    marca: document.getElementById('f-marca')?.value||'',
+    modelo: document.getElementById('f-modelo')?.value||'',
+    problema: document.getElementById('f-prob')?.value||'',
+    prazo: document.getElementById('f-prazo')?.value||'',
+    obs: document.getElementById('f-obs')?.value||'',
+    desconto: desc,
+    servicos: srvArr,
+    subtotal: sub,
+    total: Math.max(0,sub-desc),
+    status: document.querySelector('.status-btn.sel')?.dataset.s||'pendente',
+  };
+}
+
 function toast(msg,type='ok') {
   const t=document.getElementById('toast');
   t.textContent=msg;
@@ -360,7 +588,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
 .filter-btn{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:0.08em;padding:4px 11px;border-radius:20px;border:0.5px solid var(--b2);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;}
 .filter-btn.act{background:var(--burnt);color:var(--cream);border-color:var(--burnt);}
-.orc-row{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:11px 14px;display:grid;grid-template-columns:46px 1fr auto auto auto;gap:10px;align-items:center;cursor:pointer;transition:all 0.15s;margin-bottom:5px;}
+.orc-row{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:11px 14px;display:grid;grid-template-columns:46px 1fr auto auto auto auto;gap:10px;align-items:center;cursor:pointer;transition:all 0.15s;margin-bottom:5px;}
 .orc-row:hover{border-color:var(--burnt);background:var(--surf2);}
 .orc-num{font-family:'Special Elite',monospace;font-size:11px;color:var(--burnt);}
 .orc-cli{font-size:13px;font-weight:700;color:var(--cream);}
@@ -429,6 +657,10 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .f-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:0.5rem;}
 .btn-save{flex:1;background:var(--burnt);color:var(--cream);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.1em;padding:12px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-save:hover{background:var(--amber);color:var(--blk);}
+.btn-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.btn-os:hover{background:var(--amber);color:var(--blk);}
+.orc-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all 0.15s;letter-spacing:0.06em;}
+.orc-os:hover{background:var(--amber);color:var(--blk);}
 .btn-wa{background:transparent;border:0.5px solid #25D366;color:#25D366;font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-wa:hover{background:#25D366;color:#fff;}
 
@@ -582,6 +814,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 
     <div class="f-actions">
       <button class="btn-wa" onclick="sendWA()">WhatsApp</button>
+      <button class="btn-os" onclick="gerarOS(editingId)">Gerar OS PDF</button>
       <button class="btn-save" onclick="saveOrc()"><span id="btn-save-txt">Salvar orcamento</span></button>
     </div>
   </div>
