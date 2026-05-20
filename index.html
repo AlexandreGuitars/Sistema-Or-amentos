@@ -9,7 +9,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+ 
 const firebaseConfig = {
   apiKey: "AIzaSyDpXI_RIUwP2pbjl5aEfnrxP5-TYzyMp5c",
   authDomain: "alexandre-guitars.firebaseapp.com",
@@ -18,11 +18,11 @@ const firebaseConfig = {
   messagingSenderId: "552134814794",
   appId: "1:552134814794:web:36d58bef7fc23f4cb5cab3"
 };
-
+ 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
-
+ 
 const SERVICOS = {
   'Setup e Regulagem': [
     {id:'setup-basico',   name:'Setup Basico',         price:80 },
@@ -57,7 +57,7 @@ const SERVICOS = {
     {id:'revisao-sem',   name:'Revisao Semestral',      price:100},
   ],
 };
-
+ 
 const STATUS_MAP = {
   pendente:  {label:'Pendente',     bg:'#1a4a8a'},
   aprovado:  {label:'Aprovado',     bg:'#2A7A5A'},
@@ -66,20 +66,20 @@ const STATUS_MAP = {
   entregue:  {label:'Entregue',     bg:'#333'},
   cancelado: {label:'Cancelado',    bg:'#8B0000'},
 };
-
+ 
 let orcamentos = [];
 let editingId  = null;
 let selectedSrvs = {};
 let filterStatus = 'todos';
 let searchTerm   = '';
-
+ 
 // AUTH
 onAuthStateChanged(auth, user => {
   document.getElementById('screen-login').style.display = user ? 'none'  : 'flex';
   document.getElementById('screen-app').style.display   = user ? 'block' : 'none';
   if (user) { document.getElementById('user-email').textContent = user.email; loadData(); }
 });
-
+ 
 window.doLogin = async () => {
   const e = document.getElementById('l-email').value;
   const p = document.getElementById('l-pass').value;
@@ -87,9 +87,9 @@ window.doLogin = async () => {
   try { await signInWithEmailAndPassword(auth, e, p); }
   catch(ex) { document.getElementById('l-err').textContent = 'E-mail ou senha incorretos.'; }
 };
-
+ 
 window.doLogout = () => signOut(auth);
-
+ 
 // LOAD
 async function loadData() {
   try {
@@ -100,7 +100,7 @@ async function loadData() {
     renderLista();
   } catch(ex) { toast('Erro ao carregar: '+ex.message,'error'); }
 }
-
+ 
 function renderStats() {
   const total = orcamentos.length;
   const pend  = orcamentos.filter(o=>o.status==='pendente').length;
@@ -111,7 +111,7 @@ function renderStats() {
   document.getElementById('st-and').textContent   = and;
   document.getElementById('st-fat').textContent   = fmt(fat);
 }
-
+ 
 function renderLista() {
   let list = orcamentos;
   if (filterStatus !== 'todos') list = list.filter(o=>o.status===filterStatus);
@@ -133,7 +133,7 @@ function renderLista() {
     </div>`;
   }).join('');
 }
-
+ 
 window.openEdit = id => {
   const o = orcamentos.find(x=>x.id===id);
   if (!o) return;
@@ -159,7 +159,7 @@ window.openEdit = id => {
   document.getElementById('btn-save-txt').textContent = 'Salvar alteracoes';
   showView('form');
 };
-
+ 
 window.newOrc = () => {
   editingId = null;
   selectedSrvs = {};
@@ -176,7 +176,7 @@ window.newOrc = () => {
   document.getElementById('btn-save-txt').textContent = 'Salvar orcamento';
   showView('form');
 };
-
+ 
 window.saveOrc = async () => {
   const nome = document.getElementById('f-nome').value.trim();
   if (!nome) { toast('Informe o nome do cliente.','error'); return; }
@@ -214,14 +214,14 @@ window.saveOrc = async () => {
     showView('lista');
   } catch(ex) { toast('Erro ao salvar: '+ex.message,'error'); }
 };
-
+ 
 window.delOrc = async id => {
   if (!confirm('Excluir este orcamento?')) return;
   await deleteDoc(doc(db,'orcamentos',id));
   await loadData();
   toast('Excluido.');
 };
-
+ 
 function renderCatalog() {
   // Render preset services
   const presetsHTML = Object.entries(SERVICOS).map(([cat,items])=>`
@@ -246,10 +246,10 @@ function renderCatalog() {
   // Re-render custom rows
   renderCustomRows();
 }
-
+ 
 let customRows = {};
 let customIdCounter = 0;
-
+ 
 function renderCustomRows() {
   const el = document.getElementById('custom-rows');
   if (!el) return;
@@ -268,14 +268,14 @@ function renderCustomRows() {
     }
   });
 }
-
+ 
 window.addCustomRow = () => {
   customIdCounter++;
   const cid = 'custom_' + customIdCounter;
   customRows[cid] = { name:'', price:0 };
   renderCustomRows();
 };
-
+ 
 window.updateCustomRow = (cid) => {
   const row = document.getElementById(cid);
   if (!row) return;
@@ -284,20 +284,20 @@ window.updateCustomRow = (cid) => {
   customRows[cid] = { name, price };
   calcTotal();
 };
-
+ 
 window.removeCustomRow = (cid) => {
   delete customRows[cid];
   const el = document.getElementById(cid);
   if (el) el.remove();
   calcTotal();
 };
-
+ 
 window.toggleSrv = el => {
   const id=el.dataset.id, name=el.dataset.name, price=parseFloat(el.dataset.price);
   if (selectedSrvs[id]) delete selectedSrvs[id]; else selectedSrvs[id]={name,price,qty:1};
   renderCatalog(); calcTotal();
 };
-
+ 
 window.chgQty = (e,id,d) => {
   e.stopPropagation();
   if (!selectedSrvs[id]) return;
@@ -307,7 +307,7 @@ window.chgQty = (e,id,d) => {
   if(qn) qn.textContent=q; if(qs) qs.textContent=fmt(p*q);
   calcTotal();
 };
-
+ 
 window.calcTotal = () => {
   const desc=parseFloat(document.getElementById('f-desc')?.value)||0;
   let sub=0;
@@ -329,7 +329,7 @@ window.calcTotal = () => {
   const tv=document.getElementById('total-val'); if(tv) tv.textContent=fmt(Math.max(0,sub-desc));
   const sv=document.getElementById('sub-val');   if(sv) sv.textContent=fmt(sub);
 };
-
+ 
 window.sendWA = () => {
   const nome=document.getElementById('f-nome').value||'Cliente';
   const tipo=document.getElementById('f-tipo').value||'';
@@ -339,37 +339,37 @@ window.sendWA = () => {
   const msg=`Ola ${nome}! Segue o orcamento da Alexandre Guitars:\n\n${tipo} ${marca}\n\nServicos:\n${srvs}\n\nTotal: ${total}\n\nGarantia de 30 dias em todos os servicos.`;
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 };
-
+ 
 window.setFilter = st => {
   filterStatus=st;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('act',b.dataset.f===st));
   renderLista();
 };
-
+ 
 window.doSearch = v => { searchTerm=v; renderLista(); };
-
+ 
 window.setStatusBtn = btn => {
   document.querySelectorAll('.status-btn').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
 };
-
+ 
 function setStatusBtns(st) {
   document.querySelectorAll('.status-btn').forEach(b=>b.classList.toggle('sel',b.dataset.s===st));
 }
-
+ 
 window.showView = v => {
   document.getElementById('view-lista').style.display = v==='lista'?'block':'none';
   document.getElementById('view-form').style.display  = v==='form' ?'block':'none';
   if(v==='lista') loadData();
 };
-
+ 
 function setValue(id, val) {
   const el=document.getElementById(id);
   if(el) el.value=val||'';
 }
-
+ 
 function fmt(v) { return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-
+ 
 function toast(msg,type='ok') {
   const t=document.getElementById('toast');
   t.textContent=msg;
@@ -378,12 +378,12 @@ function toast(msg,type='ok') {
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 </script>
-
+ 
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--burnt:#C8511A;--amber:#E8890A;--blk:#1a0500;--bg:#0C0702;--surf:#1a1008;--surf2:#231508;--cream:#F0E6D0;--dim:#B89A70;--muted:#7A5C3A;--b2:#3E2410;--border:#2E1A08;}
 body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Georgia,serif;min-height:100vh;}
-
+ 
 /* LOGIN */
 #screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;}
 .lbox{background:var(--surf);border:0.5px solid var(--b2);border-radius:12px;padding:2.5rem;width:100%;max-width:360px;text-align:center;}
@@ -396,7 +396,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .l-err{font-size:12px;color:#ff6b6b;min-height:16px;margin-bottom:8px;}
 .btn-login{width:100%;background:var(--burnt);color:var(--cream);font-family:'Special Elite',monospace;font-size:13px;letter-spacing:0.12em;padding:13px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-login:hover{background:var(--amber);color:var(--blk);}
-
+ 
 /* APP */
 #screen-app{display:none;}
 .topbar{background:var(--surf);border-bottom:0.5px solid var(--b2);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
@@ -406,14 +406,14 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .u-email{font-family:'Special Elite',monospace;font-size:10px;color:var(--muted);}
 .btn-out{background:transparent;border:0.5px solid var(--b2);color:var(--muted);font-family:'Special Elite',monospace;font-size:10px;padding:5px 12px;border-radius:4px;cursor:pointer;transition:all 0.15s;}
 .btn-out:hover{border-color:var(--burnt);color:var(--burnt);}
-
+ 
 /* STATS */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:1rem 1.5rem 0;}
 .st-card{background:var(--surf);border:0.5px solid var(--b2);border-radius:8px;padding:0.875rem;}
 .st-lbl{font-family:'Special Elite',monospace;font-size:8px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
 .st-val{font-family:'Special Elite',monospace;font-size:20px;color:var(--cream);}
 .st-val.g{color:#5DCAA5;}
-
+ 
 /* LISTA */
 #view-lista{padding:1rem 1.5rem;}
 .toolbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
@@ -428,4 +428,435 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .orc-row:hover{border-color:var(--burnt);background:var(--surf2);}
 .orc-num{font-family:'Special Elite',monospace;font-size:11px;color:var(--burnt);}
 .orc-cli{font-size:13px;font-weight:700;color:var(--cream);}
-.or
+.orc-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.orc-tot{font-family:'Special Elite',monospace;font-size:13px;color:var(--cream);white-space:nowrap;}
+.orc-st{font-family:'Special Elite',monospace;font-size:9px;padding:3px 9px;border-radius:20px;white-space:nowrap;letter-spacing:0.05em;}
+.orc-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:3px;transition:color 0.15s;}
+.orc-del:hover{color:#ff6b6b;}
+.empty{text-align:center;padding:3rem;font-family:'Special Elite',monospace;font-size:13px;color:var(--muted);}
+ 
+/* FORM */
+#view-form{padding:1rem 1.5rem;max-width:860px;}
+.fhdr{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;}
+.btn-back{background:transparent;border:0.5px solid var(--b2);color:var(--muted);font-family:'Special Elite',monospace;font-size:11px;padding:6px 12px;border-radius:4px;cursor:pointer;transition:all 0.15s;}
+.btn-back:hover{border-color:var(--burnt);color:var(--burnt);}
+.ftitle{font-family:'Special Elite',monospace;font-size:17px;color:var(--cream);letter-spacing:0.04em;}
+.sec-lbl{font-family:'Special Elite',monospace;font-size:8px;letter-spacing:0.2em;color:var(--burnt);text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+.sec-lbl::after{content:'';flex:1;height:0.4px;background:var(--b2);}
+.fsec{margin-bottom:1.25rem;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.fg{display:flex;flex-direction:column;gap:3px;}
+.fg label{font-family:'Special Elite',monospace;font-size:8px;letter-spacing:0.13em;color:var(--muted);text-transform:uppercase;}
+.fg input,.fg select,.fg textarea{background:var(--bg);border:0.5px solid var(--b2);border-radius:4px;color:var(--cream);font-size:13px;padding:8px 11px;outline:none;font-family:'Libre Baskerville',serif;transition:border-color 0.15s;width:100%;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--burnt);}
+.fg textarea{resize:vertical;min-height:64px;}
+.fg select option{background:var(--surf);}
+ 
+/* STATUS BTNS */
+.st-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.status-btn{font-family:'Special Elite',monospace;font-size:11px;padding:5px 13px;border-radius:20px;border:0.5px solid var(--b2);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;}
+.status-btn[data-s="pendente"].sel  {background:#1a4a8a;color:#fff;border-color:#1a4a8a;}
+.status-btn[data-s="aprovado"].sel  {background:#2A7A5A;color:#fff;border-color:#2A7A5A;}
+.status-btn[data-s="andamento"].sel {background:#E8890A;color:#1a0500;border-color:#E8890A;}
+.status-btn[data-s="pronto"].sel    {background:#5DCAA5;color:#1a0500;border-color:#5DCAA5;}
+.status-btn[data-s="entregue"].sel  {background:#ccc;color:#1a0500;border-color:#ccc;}
+.status-btn[data-s="cancelado"].sel {background:#8B0000;color:#fff;border-color:#8B0000;}
+ 
+/* CATALOG */
+.cat-grp{margin-bottom:10px;}
+.cat-lbl{font-family:'Special Elite',monospace;font-size:9px;letter-spacing:0.15em;color:var(--burnt);text-transform:uppercase;margin-bottom:5px;}
+.cat-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:5px;}
+.srv-card{background:var(--bg);border:0.5px solid var(--b2);border-radius:5px;padding:9px 11px;cursor:pointer;transition:all 0.15s;}
+.srv-card:hover{border-color:var(--burnt);}
+.srv-card.sel{border-color:var(--burnt);background:rgba(200,81,26,0.1);}
+.srv-nm{font-size:12px;color:var(--cream);margin-bottom:2px;}
+.srv-pr{font-family:'Special Elite',monospace;font-size:12px;color:var(--burnt);}
+.qty-row{display:flex;align-items:center;gap:7px;margin-top:7px;padding-top:7px;border-top:0.5px solid var(--b2);}
+.qty-row button{width:20px;height:20px;border-radius:50%;border:0.5px solid var(--b2);background:var(--surf);color:var(--cream);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;line-height:1;}
+.qty-row button:hover{border-color:var(--burnt);color:var(--burnt);}
+.qty-row span{font-family:'Special Elite',monospace;font-size:12px;color:var(--cream);}
+.qsub{margin-left:auto;color:var(--burnt) !important;}
+ 
+/* TOTAL */
+.tot-panel{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:1rem;margin-bottom:1rem;}
+.breakdown{max-height:110px;overflow-y:auto;margin-bottom:10px;}
+.bd-row{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);padding:3px 0;border-bottom:0.3px solid var(--border);}
+.bd-empty{font-size:12px;color:var(--muted);font-family:'Special Elite',monospace;}
+.tr-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.3px solid var(--border);}
+.tr-row:last-child{border-bottom:none;}
+.tr-row label{font-family:'Special Elite',monospace;font-size:9px;color:var(--muted);letter-spacing:0.14em;}
+.tr-grand{font-family:'Special Elite',monospace;font-size:22px;color:var(--burnt);font-weight:700;}
+.disc-inp{width:90px;text-align:right;border:0.5px solid var(--b2);background:var(--bg);border-radius:4px;color:var(--burnt);font-family:'Special Elite',monospace;font-size:13px;padding:4px 7px;outline:none;}
+ 
+/* ACTIONS */
+.f-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:0.5rem;}
+.btn-save{flex:1;background:var(--burnt);color:var(--cream);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.1em;padding:12px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.btn-save:hover{background:var(--amber);color:var(--blk);}
+.btn-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.btn-os:hover{background:var(--amber);color:var(--blk);}
+.orc-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all 0.15s;letter-spacing:0.06em;}
+.orc-os:hover{background:var(--amber);color:var(--blk);}
+.btn-wa{background:transparent;border:0.5px solid #25D366;color:#25D366;font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.btn-wa:hover{background:#25D366;color:#fff;}
+.custom-row{display:grid;grid-template-columns:1fr 110px 32px;gap:8px;align-items:center;padding:8px 10px;background:var(--bg);border:0.5px dashed var(--b2);border-radius:5px;}
+.custom-name{background:transparent;border:none;border-bottom:0.5px solid var(--b2);color:var(--cream);font-size:13px;padding:4px 2px;outline:none;width:100%;font-family:'Libre Baskerville',serif;transition:border-color 0.15s;}
+.custom-name:focus{border-bottom-color:var(--burnt);}
+.custom-price-inp{background:transparent;border:none;border-bottom:0.5px solid var(--b2);color:var(--burnt);font-family:'Special Elite',monospace;font-size:13px;padding:4px 4px;outline:none;text-align:right;width:100%;transition:border-color 0.15s;}
+.custom-price-inp:focus{border-bottom-color:var(--burnt);}
+.custom-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;transition:color 0.15s;font-weight:bold;}
+.custom-del:hover{color:#ff6b6b;}
+.btn-add-custom{width:100%;background:transparent;border:0.5px dashed var(--b2);color:var(--muted);font-family:'Special Elite',monospace;font-size:11px;letter-spacing:0.08em;padding:8px;border-radius:5px;cursor:pointer;transition:all 0.15s;margin-top:2px;}
+.btn-add-custom:hover{border-color:var(--burnt);color:var(--burnt);}
+ 
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;color:#fff;font-family:'Special Elite',monospace;font-size:12px;padding:10px 18px;border-radius:6px;opacity:0;transform:translateY(10px);transition:all 0.3s;pointer-events:none;z-index:999;letter-spacing:0.08em;}
+.toast.show{opacity:1;transform:translateY(0);}
+ 
+@media(max-width:640px){
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .g2,.g3{grid-template-columns:1fr;}
+  .orc-row{grid-template-columns:40px 1fr auto auto;}
+  .orc-st{display:none;}
+}
+</style>
+</head>
+<body>
+ 
+<!-- LOGIN -->
+<div id="screen-login">
+  <div class="lbox">
+    <div class="lbox-name">Alexandre</div>
+    <div class="lbox-sub">G u i t a r s</div>
+    <div style="font-size:13px;color:var(--dim);margin-bottom:1.5rem;">Sistema de Orcamentos</div>
+    <div class="lf"><label>E-mail</label><input type="email" id="l-email" placeholder="contato@alexandreguitars.com.br" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="lf"><label>Senha</label><input type="password" id="l-pass" placeholder="Senha" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="l-err" id="l-err"></div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+ 
+<!-- APP -->
+<div id="screen-app">
+  <div class="topbar">
+    <div class="tb-brand"><span>&#10022;</span> Alexandre Guitars &mdash; Orcamentos</div>
+    <div class="tb-right">
+      <span class="u-email" id="user-email"></span>
+      <button class="btn-out" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+ 
+  <div class="stats-row">
+    <div class="st-card"><div class="st-lbl">Total</div><div class="st-val" id="st-total">0</div></div>
+    <div class="st-card"><div class="st-lbl">Pendentes</div><div class="st-val" id="st-pend">0</div></div>
+    <div class="st-card"><div class="st-lbl">Em andamento</div><div class="st-val" id="st-and">0</div></div>
+    <div class="st-card"><div class="st-lbl">Faturado</div><div class="st-val g" id="st-fat">R$ 0,00</div></div>
+  </div>
+ 
+  <!-- LISTA -->
+  <div id="view-lista">
+    <div style="padding:1rem 1.5rem 0;">
+      <div class="toolbar">
+        <input class="s-inp" placeholder="Buscar cliente, instrumento ou numero..." oninput="doSearch(this.value)">
+        <button class="btn-new" onclick="newOrc()">+ Novo orcamento</button>
+      </div>
+      <div class="filters">
+        <button class="filter-btn act" data-f="todos"    onclick="setFilter('todos')">Todos</button>
+        <button class="filter-btn"     data-f="pendente" onclick="setFilter('pendente')">Pendentes</button>
+        <button class="filter-btn"     data-f="aprovado" onclick="setFilter('aprovado')">Aprovados</button>
+        <button class="filter-btn"     data-f="andamento"onclick="setFilter('andamento')">Andamento</button>
+        <button class="filter-btn"     data-f="pronto"   onclick="setFilter('pronto')">Prontos</button>
+        <button class="filter-btn"     data-f="entregue" onclick="setFilter('entregue')">Entregues</button>
+      </div>
+    </div>
+    <div style="padding:0 1.5rem;" id="lista-body"></div>
+  </div>
+ 
+  <!-- FORM -->
+  <div id="view-form" style="display:none;">
+    <div class="fhdr">
+      <button class="btn-back" onclick="showView('lista')">&larr; Voltar</button>
+      <div class="ftitle" id="form-title">Novo Orcamento</div>
+    </div>
+ 
+    <!-- STATUS -->
+    <div class="fsec">
+      <div class="sec-lbl">Status</div>
+      <div class="st-btns">
+        <button type="button" class="status-btn sel" data-s="pendente"  onclick="setStatusBtn(this)">Pendente</button>
+        <button type="button" class="status-btn"     data-s="aprovado"  onclick="setStatusBtn(this)">Aprovado</button>
+        <button type="button" class="status-btn"     data-s="andamento" onclick="setStatusBtn(this)">Em andamento</button>
+        <button type="button" class="status-btn"     data-s="pronto"    onclick="setStatusBtn(this)">Pronto</button>
+        <button type="button" class="status-btn"     data-s="entregue"  onclick="setStatusBtn(this)">Entregue</button>
+        <button type="button" class="status-btn"     data-s="cancelado" onclick="setStatusBtn(this)">Cancelado</button>
+      </div>
+    </div>
+ 
+    <!-- CLIENTE -->
+    <div class="fsec">
+      <div class="sec-lbl">1. Cliente</div>
+      <div class="g2" style="margin-bottom:10px;">
+        <div class="fg"><label>Nome *</label><input type="text" id="f-nome" placeholder="Nome completo"></div>
+        <div class="fg"><label>WhatsApp</label><input type="tel" id="f-tel" placeholder="(11) 99339-4130"></div>
+      </div>
+      <div class="fg"><label>E-mail</label><input type="email" id="f-email" placeholder="email@exemplo.com"></div>
+    </div>
+ 
+    <!-- INSTRUMENTO -->
+    <div class="fsec">
+      <div class="sec-lbl">2. Instrumento</div>
+      <div class="g3">
+        <div class="fg"><label>Tipo</label>
+          <select id="f-tipo">
+            <option value="">Selecione...</option>
+            <option>Guitarra eletrica</option>
+            <option>Violao aco</option>
+            <option>Violao nylon</option>
+            <option>Baixo eletrico</option>
+            <option>Semi-acustica</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="fg"><label>Marca</label><input type="text" id="f-marca" placeholder="Ex: Tagima"></div>
+        <div class="fg"><label>Modelo</label><input type="text" id="f-modelo" placeholder="Ex: TG-530"></div>
+      </div>
+    </div>
+ 
+    <!-- PROBLEMA -->
+    <div class="fsec">
+      <div class="sec-lbl">3. Problema / Diagnostico</div>
+      <div class="fg"><textarea id="f-prob" placeholder="Descreva o problema e o diagnostico..."></textarea></div>
+    </div>
+ 
+    <!-- SERVICOS -->
+    <div class="fsec">
+      <div class="sec-lbl">4. Servicos</div>
+      <div id="catalog"></div>
+      <div class="cat-grp" style="margin-top:10px;">
+        <div class="cat-lbl">Servico Personalizado</div>
+        <div id="custom-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
+        <button type="button" class="btn-add-custom" onclick="addCustomRow()">+ Adicionar servico personalizado</button>
+      </div>
+    </div>
+ 
+    <!-- TOTAL -->
+    <div class="fsec">
+      <div class="sec-lbl">5. Financeiro</div>
+      <div class="tot-panel">
+        <div class="breakdown" id="breakdown"></div>
+        <div class="tr-row"><label>SUBTOTAL</label><span style="font-family:'Special Elite',monospace;font-size:14px;color:var(--cream);" id="sub-val">R$ 0,00</span></div>
+        <div class="tr-row">
+          <label>DESCONTO (R$)</label>
+          <input class="disc-inp" type="number" id="f-desc" value="0" min="0" step="0.01" oninput="calcTotal()">
+        </div>
+        <div class="tr-row"><label>TOTAL</label><span class="tr-grand" id="total-val">R$ 0,00</span></div>
+      </div>
+    </div>
+ 
+    <!-- PRAZO -->
+    <div class="fsec">
+      <div class="sec-lbl">6. Prazo e Observacoes</div>
+      <div class="g2">
+        <div class="fg"><label>Previsao de entrega</label><input type="date" id="f-prazo"></div>
+        <div class="fg"><label>Observacoes</label><input type="text" id="f-obs" placeholder="Anotacoes adicionais..."></div>
+      </div>
+    </div>
+ 
+    <div class="f-actions">
+      <button class="btn-wa" onclick="sendWA()">WhatsApp</button>
+      <button class="btn-os" onclick="gerarOS(editingId)">Gerar OS PDF</button>
+      <button class="btn-save" onclick="saveOrc()"><span id="btn-save-txt">Salvar orcamento</span></button>
+    </div>
+  </div>
+</div>
+ 
+<div class="toast" id="toast"></div>
+ 
+<script>
+// ── GERAR OS PDF ──
+window.gerarOS = function(id) {
+  const o = id && typeof orcamentos !== 'undefined'
+    ? orcamentos.find(x=>x.id===id)
+    : buildCurrentOrc();
+  if (!o) { alert('Salve o orcamento primeiro.'); return; }
+ 
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+ 
+  const W=210, ML=18, CW=174;
+  let y=14;
+  const BURNT=[200,81,26], BLK=[26,5,0], CREAM=[240,230,208], MUTED=[160,128,96];
+  const LIGHT=[245,237,224], ALT=[251,245,236], AMBER=[232,137,10], DBG=[46,26,8];
+ 
+  // Helvetica is built-in jsPDF and supports Portuguese
+  const bold   = (sz,c=BLK)=>{ doc.setFont('helvetica','bold');   doc.setFontSize(sz); doc.setTextColor(...c); };
+  const normal = (sz,c=BLK)=>{ doc.setFont('helvetica','normal'); doc.setFontSize(sz); doc.setTextColor(...c); };
+  const italic = (sz,c=BLK)=>{ doc.setFont('helvetica','italic'); doc.setFontSize(sz); doc.setTextColor(...c); };
+  const hl     = (yy,c=BURNT,t=0.5)=>{ doc.setDrawColor(...c); doc.setLineWidth(t); doc.line(ML,yy,ML+CW,yy); };
+  const fill   = (x,yy,w,h,c)=>{ doc.setFillColor(...c); doc.setDrawColor(0,0,0,0); doc.rect(x,yy,w,h,'F'); };
+  const fmtR   = v=>'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+ 
+  // ── HEADER ──
+  bold(26,BLK);   doc.text('Alexandre Guitars', ML, y);
+  normal(9,BURNT); doc.text('Reparo · Customizacao · Manutencao de Instrumentos de Corda', ML, y+7);
+ 
+  const num = '#'+String(o.numero||0).padStart(4,'0');
+  bold(8,BURNT);   doc.text('ORDEM DE SERVICO', ML+CW, y, {align:'right'});
+  bold(14,BLK);    doc.text(num, ML+CW, y+9, {align:'right'});
+  normal(8,MUTED);
+  doc.text('Data: '+new Date().toLocaleDateString('pt-BR'), ML+CW, y+15, {align:'right'});
+  doc.text('Status: '+(o.status||'pendente').toUpperCase(), ML+CW, y+20, {align:'right'});
+  y+=24; hl(y,BURNT,0.9); y+=5;
+ 
+  // ── SECTION ──
+  const sec = (t,yy) => {
+    fill(ML,yy-4,CW,7.5,DBG);
+    bold(7,CREAM);
+    doc.text(t.toUpperCase(), ML+3, yy+1);
+    return yy+8;
+  };
+ 
+  // ── FIELD ──
+  const field = (lbl,val,x,yy,w) => {
+    normal(7,MUTED); doc.text(lbl, x, yy);
+    bold(9,BLK);     doc.text(String(val||'--').substring(0,55), x, yy+5.5);
+    doc.setDrawColor(...MUTED); doc.setLineWidth(0.2);
+    doc.line(x, yy+7, x+w, yy+7);
+  };
+ 
+  // 1. CLIENTE
+  y = sec('1. Dados do Cliente', y);
+  field('Nome completo', o.cliente, ML, y, CW/2-4);
+  field('WhatsApp / Telefone', o.telefone, ML+CW/2+4, y, CW/2-4);
+  y+=14;
+  field('E-mail', o.email, ML, y, CW);
+  y+=14;
+ 
+  // 2. INSTRUMENTO
+  y = sec('2. Instrumento', y);
+  const col = CW/3;
+  field('Tipo', o.tipoInstrumento, ML, y, col-4);
+  field('Marca', o.marca, ML+col+2, y, col-4);
+  field('Modelo', o.modelo, ML+col*2+4, y, col-4);
+  y+=14;
+ 
+  // 3. DIAGNOSTICO
+  y = sec('3. Diagnostico / Problema Relatado', y);
+  normal(8.5,BLK);
+  const pl = doc.splitTextToSize(o.problema||'Nao informado.', CW-4);
+  doc.text(pl, ML+2, y+1);
+  y += Math.max(12, pl.length*5) + 4;
+ 
+  // 4. SERVICOS
+  y = sec('4. Servicos Realizados', y);
+  fill(ML,y-1,CW,7,DBG);
+  bold(7,CREAM);
+  doc.text('Servico / Descricao', ML+3, y+4);
+  doc.text('Qtd', ML+CW-30, y+4, {align:'right'});
+  doc.text('Valor', ML+CW-2, y+4, {align:'right'});
+  y+=8;
+ 
+  (o.servicos||[]).forEach((s,i) => {
+    if (y > 260) { doc.addPage(); y=20; }
+    if (i%2===0) fill(ML, y-1, CW, 7.5, ALT);
+    bold(8.5,BLK);   doc.text(s.name||'', ML+3, y+4);
+    normal(8,MUTED); doc.text(String(s.qty||1)+'x', ML+CW-30, y+4, {align:'right'});
+    bold(8.5,BURNT);  doc.text(fmtR(s.price*(s.qty||1)), ML+CW-2, y+4, {align:'right'});
+    doc.setDrawColor(...LIGHT); doc.setLineWidth(0.2);
+    doc.line(ML, y+6.5, ML+CW, y+6.5);
+    y+=8;
+  });
+ 
+  if (!(o.servicos||[]).length) {
+    normal(8,MUTED); doc.text('Nenhum servico registrado.', ML+3, y+4); y+=10;
+  }
+  y+=3;
+ 
+  if ((o.desconto||0)>0) {
+    fill(ML,y-1,CW,7,LIGHT); normal(8,MUTED); doc.text('Subtotal', ML+3, y+4);
+    bold(8,BLK); doc.text(fmtR(o.subtotal||0), ML+CW-2, y+4, {align:'right'}); y+=8;
+    fill(ML,y-1,CW,7,LIGHT); normal(8,MUTED); doc.text('Desconto', ML+3, y+4);
+    bold(8,BURNT); doc.text('- '+fmtR(o.desconto||0), ML+CW-2, y+4, {align:'right'}); y+=8;
+  }
+ 
+  fill(ML,y-1,CW,9,BLK);
+  bold(9,CREAM); doc.text('TOTAL', ML+4, y+5);
+  bold(12,AMBER); doc.text(fmtR(o.total||0), ML+CW-2, y+5, {align:'right'});
+  y+=13;
+ 
+  // 5. PRAZO
+  if (y>240) { doc.addPage(); y=20; }
+  y = sec('5. Prazo e Condicoes', y);
+  field('Previsao de entrega', o.prazo||'A combinar', ML, y, CW/2-4);
+  y+=14;
+  if (o.obs) {
+    normal(7,MUTED); doc.text('Observacoes:', ML, y);
+    normal(8,BLK);
+    const ol = doc.splitTextToSize(o.obs, CW-2);
+    doc.text(ol, ML, y+5);
+    y += ol.length*4.5+8;
+  }
+ 
+  // 6. TERMOS
+  if (y>235) { doc.addPage(); y=20; }
+  y = sec('6. Termos e Garantia', y);
+  normal(7.5,MUTED);
+  [
+    '- Orcamento valido por 15 dias a partir da data de emissao.',
+    '- Garantia de 30 dias em todos os servicos realizados.',
+    '- Pecas e materiais adicionais cobrados separadamente mediante aprovacao previa.',
+    '- O prazo de entrega inicia apos a aprovacao formal do orcamento.',
+  ].forEach((t,i) => doc.text(t, ML+2, y+i*5));
+  y+=26;
+ 
+  // 7. ASSINATURAS
+  if (y>245) { doc.addPage(); y=20; }
+  y = sec('7. Assinaturas', y);
+  y+=14;
+  const sw = CW/2-12;
+  doc.setDrawColor(...MUTED); doc.setLineWidth(0.4);
+  doc.line(ML, y, ML+sw, y);
+  doc.line(ML+sw+24, y, ML+CW, y);
+  normal(7,MUTED);
+  doc.text('Assinatura do Cliente',       ML+sw/2,       y+4.5, {align:'center'});
+  doc.text('Alexandre Guitars - Responsavel', ML+sw+24+sw/2, y+4.5, {align:'center'});
+  doc.text('Data: ____/____/________', ML+sw/2,       y+9, {align:'center'});
+  doc.text('Data: ____/____/________', ML+sw+24+sw/2, y+9, {align:'center'});
+ 
+  // FOOTER
+  hl(287-4, BURNT, 0.5);
+  normal(7,MUTED);
+  doc.text('Alexandre Guitars  |  @alexandreguitarsluthieria  |  (11) 99339-4130  |  contato@alexandreguitars.com.br', W/2, 287, {align:'center'});
+  doc.text('Garantia de 30 dias em todos os servicos  |  Lapa - Sao Paulo, SP', W/2, 291, {align:'center'});
+ 
+  doc.save('OS-'+num.replace('#','')+'-'+(o.cliente||'cliente').replace(/[^a-zA-Z0-9]/g,'-')+'.pdf');
+};
+ 
+window.buildCurrentOrc = function() {
+  const nome = document.getElementById('f-nome')?.value?.trim();
+  if (!nome) return null;
+  const desc = parseFloat(document.getElementById('f-desc')?.value)||0;
+  const srvArr = [
+    ...Object.entries(typeof selectedSrvs!=='undefined'?selectedSrvs:{}).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty})),
+    ...Object.entries(typeof customRows!=='undefined'?customRows:{}).filter(([id,s])=>s.price>0).map(([id,s])=>({id,name:s.name||'Servico personalizado',price:s.price,qty:1})),
+  ];
+  const sub = srvArr.reduce((a,s)=>a+s.price*(s.qty||1),0);
+  return {
+    numero: (typeof orcamentos!=='undefined'&&orcamentos[0]?.numero||0)+1,
+    cliente: nome,
+    telefone: document.getElementById('f-tel')?.value||'',
+    email:    document.getElementById('f-email')?.value||'',
+    tipoInstrumento: document.getElementById('f-tipo')?.value||'',
+    marca:    document.getElementById('f-marca')?.value||'',
+    modelo:   document.getElementById('f-modelo')?.value||'',
+    problema: document.getElementById('f-prob')?.value||'',
+    prazo:    document.getElementById('f-prazo')?.value||'',
+    obs:      document.getElementById('f-obs')?.value||'',
+    desconto: desc, servicos: srvArr, subtotal: sub,
+    total: Math.max(0, sub-desc),
+    status: document.querySelector('.status-btn.sel')?.dataset.s||'pendente',
+  };
+};
+</script>
+</body>
+</html>
