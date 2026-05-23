@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alexandre Guitars — Sistema</title>
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
- 
+
 const firebaseConfig = {
   apiKey: "AIzaSyDpXI_RIUwP2pbjl5aEfnrxP5-TYzyMp5c",
   authDomain: "alexandre-guitars.firebaseapp.com",
@@ -18,11 +19,11 @@ const firebaseConfig = {
   messagingSenderId: "552134814794",
   appId: "1:552134814794:web:36d58bef7fc23f4cb5cab3"
 };
- 
+
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
- 
+
 const SERVICOS = {
   'Setup e Regulagem': [
     {id:'setup-basico',   name:'Setup Basico',         price:80 },
@@ -57,7 +58,7 @@ const SERVICOS = {
     {id:'revisao-sem',   name:'Revisao Semestral',      price:100},
   ],
 };
- 
+
 const STATUS_MAP = {
   pendente:  {label:'Pendente',     bg:'#1a4a8a'},
   aprovado:  {label:'Aprovado',     bg:'#2A7A5A'},
@@ -66,20 +67,20 @@ const STATUS_MAP = {
   entregue:  {label:'Entregue',     bg:'#333'},
   cancelado: {label:'Cancelado',    bg:'#8B0000'},
 };
- 
+
 let orcamentos = [];
 let editingId  = null;
 let selectedSrvs = {};
 let filterStatus = 'todos';
 let searchTerm   = '';
- 
+
 // AUTH
 onAuthStateChanged(auth, user => {
   document.getElementById('screen-login').style.display = user ? 'none'  : 'flex';
   document.getElementById('screen-app').style.display   = user ? 'block' : 'none';
   if (user) { document.getElementById('user-email').textContent = user.email; loadData(); }
 });
- 
+
 window.doLogin = async () => {
   const e = document.getElementById('l-email').value;
   const p = document.getElementById('l-pass').value;
@@ -87,9 +88,9 @@ window.doLogin = async () => {
   try { await signInWithEmailAndPassword(auth, e, p); }
   catch(ex) { document.getElementById('l-err').textContent = 'E-mail ou senha incorretos.'; }
 };
- 
+
 window.doLogout = () => signOut(auth);
- 
+
 // LOAD
 async function loadData() {
   try {
@@ -100,7 +101,7 @@ async function loadData() {
     renderLista();
   } catch(ex) { toast('Erro ao carregar: '+ex.message,'error'); }
 }
- 
+
 function renderStats() {
   const total = orcamentos.length;
   const pend  = orcamentos.filter(o=>o.status==='pendente').length;
@@ -111,7 +112,7 @@ function renderStats() {
   document.getElementById('st-and').textContent   = and;
   document.getElementById('st-fat').textContent   = fmt(fat);
 }
- 
+
 function renderLista() {
   let list = orcamentos;
   if (filterStatus !== 'todos') list = list.filter(o=>o.status===filterStatus);
@@ -133,14 +134,12 @@ function renderLista() {
     </div>`;
   }).join('');
 }
- 
+
 window.openEdit = id => {
   const o = orcamentos.find(x=>x.id===id);
   if (!o) return;
   editingId = id;
   selectedSrvs = {};
-  customRows = {};
-  document.getElementById('custom-rows').innerHTML = '';
   if (o.servicos) o.servicos.forEach(s=>{ selectedSrvs[s.id]={name:s.name,price:s.price,qty:s.qty||1}; });
   setValue('f-nome', o.cliente);
   setValue('f-tel',  o.telefone);
@@ -159,12 +158,10 @@ window.openEdit = id => {
   document.getElementById('btn-save-txt').textContent = 'Salvar alteracoes';
   showView('form');
 };
- 
+
 window.newOrc = () => {
   editingId = null;
   selectedSrvs = {};
-  customRows = {};
-  document.getElementById('custom-rows').innerHTML = '';
   ['f-nome','f-tel','f-email','f-marca','f-modelo','f-prob','f-prazo','f-obs'].forEach(id=>setValue(id,''));
   setValue('f-tipo','');
   setValue('f-desc',0);
@@ -176,16 +173,13 @@ window.newOrc = () => {
   document.getElementById('btn-save-txt').textContent = 'Salvar orcamento';
   showView('form');
 };
- 
+
 window.saveOrc = async () => {
   const nome = document.getElementById('f-nome').value.trim();
   if (!nome) { toast('Informe o nome do cliente.','error'); return; }
   const status = document.querySelector('.status-btn.sel')?.dataset.s || 'pendente';
   const desc   = parseFloat(document.getElementById('f-desc').value)||0;
-  const srvArr = [
-    ...Object.entries(selectedSrvs).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty})),
-    ...Object.entries(customRows||{}).filter(([id,s])=>s.price>0).map(([id,s])=>({id,name:s.name||'Servico personalizado',price:s.price,qty:1})),
-  ];
+  const srvArr = Object.entries(selectedSrvs).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty}));
   const sub    = srvArr.reduce((a,s)=>a+s.price*s.qty,0);
   const total  = Math.max(0, sub-desc);
   const data = {
@@ -214,17 +208,16 @@ window.saveOrc = async () => {
     showView('lista');
   } catch(ex) { toast('Erro ao salvar: '+ex.message,'error'); }
 };
- 
+
 window.delOrc = async id => {
   if (!confirm('Excluir este orcamento?')) return;
   await deleteDoc(doc(db,'orcamentos',id));
   await loadData();
   toast('Excluido.');
 };
- 
+
 function renderCatalog() {
-  // Render preset services
-  const presetsHTML = Object.entries(SERVICOS).map(([cat,items])=>`
+  document.getElementById('catalog').innerHTML = Object.entries(SERVICOS).map(([cat,items])=>`
     <div class="cat-grp">
       <div class="cat-lbl">${cat}</div>
       <div class="cat-items">${items.map(item=>{
@@ -242,62 +235,14 @@ function renderCatalog() {
         </div>`;
       }).join('')}</div>
     </div>`).join('');
-  document.getElementById('catalog').innerHTML = presetsHTML;
-  // Re-render custom rows
-  renderCustomRows();
 }
- 
-let customRows = {};
-let customIdCounter = 0;
- 
-function renderCustomRows() {
-  const el = document.getElementById('custom-rows');
-  if (!el) return;
-  Object.entries(customRows).forEach(([cid, row]) => {
-    if (!document.getElementById(cid)) {
-      const div = document.createElement('div');
-      div.className = 'custom-row';
-      div.id = cid;
-      div.innerHTML = `
-        <input type="text" class="custom-name" placeholder="Nome do servico..." value="${row.name||''}"
-          oninput="updateCustomRow('${cid}')">
-        <input type="number" class="custom-price-inp" placeholder="0,00" min="0" step="0.01" value="${row.price||''}"
-          oninput="updateCustomRow('${cid}')">
-        <button class="custom-del" onclick="removeCustomRow('${cid}')">x</button>`;
-      el.appendChild(div);
-    }
-  });
-}
- 
-window.addCustomRow = () => {
-  customIdCounter++;
-  const cid = 'custom_' + customIdCounter;
-  customRows[cid] = { name:'', price:0 };
-  renderCustomRows();
-};
- 
-window.updateCustomRow = (cid) => {
-  const row = document.getElementById(cid);
-  if (!row) return;
-  const name  = row.querySelector('.custom-name').value.trim() || 'Servico personalizado';
-  const price = parseFloat(row.querySelector('.custom-price-inp').value) || 0;
-  customRows[cid] = { name, price };
-  calcTotal();
-};
- 
-window.removeCustomRow = (cid) => {
-  delete customRows[cid];
-  const el = document.getElementById(cid);
-  if (el) el.remove();
-  calcTotal();
-};
- 
+
 window.toggleSrv = el => {
   const id=el.dataset.id, name=el.dataset.name, price=parseFloat(el.dataset.price);
   if (selectedSrvs[id]) delete selectedSrvs[id]; else selectedSrvs[id]={name,price,qty:1};
   renderCatalog(); calcTotal();
 };
- 
+
 window.chgQty = (e,id,d) => {
   e.stopPropagation();
   if (!selectedSrvs[id]) return;
@@ -307,29 +252,21 @@ window.chgQty = (e,id,d) => {
   if(qn) qn.textContent=q; if(qs) qs.textContent=fmt(p*q);
   calcTotal();
 };
- 
+
 window.calcTotal = () => {
   const desc=parseFloat(document.getElementById('f-desc')?.value)||0;
   let sub=0;
   const bd=document.getElementById('breakdown');
   const rows=[];
-  // Preset services
   Object.entries(selectedSrvs).forEach(([id,s])=>{
     const st=s.price*s.qty; sub+=st;
     rows.push(`<div class="bd-row"><span>${s.name}${s.qty>1?' x'+s.qty:''}</span><span>${fmt(st)}</span></div>`);
-  });
-  // Custom services
-  Object.entries(customRows||{}).forEach(([id,s])=>{
-    if(s.price>0){
-      sub+=s.price;
-      rows.push(`<div class="bd-row"><span>${s.name||'Servico personalizado'}</span><span>${fmt(s.price)}</span></div>`);
-    }
   });
   if(bd) bd.innerHTML=rows.length?rows.join(''):'<div class="bd-empty">Nenhum servico selecionado</div>';
   const tv=document.getElementById('total-val'); if(tv) tv.textContent=fmt(Math.max(0,sub-desc));
   const sv=document.getElementById('sub-val');   if(sv) sv.textContent=fmt(sub);
 };
- 
+
 window.sendWA = () => {
   const nome=document.getElementById('f-nome').value||'Cliente';
   const tipo=document.getElementById('f-tipo').value||'';
@@ -339,37 +276,37 @@ window.sendWA = () => {
   const msg=`Ola ${nome}! Segue o orcamento da Alexandre Guitars:\n\n${tipo} ${marca}\n\nServicos:\n${srvs}\n\nTotal: ${total}\n\nGarantia de 30 dias em todos os servicos.`;
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 };
- 
+
 window.setFilter = st => {
   filterStatus=st;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('act',b.dataset.f===st));
   renderLista();
 };
- 
+
 window.doSearch = v => { searchTerm=v; renderLista(); };
- 
+
 window.setStatusBtn = btn => {
   document.querySelectorAll('.status-btn').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
 };
- 
+
 function setStatusBtns(st) {
   document.querySelectorAll('.status-btn').forEach(b=>b.classList.toggle('sel',b.dataset.s===st));
 }
- 
+
 window.showView = v => {
   document.getElementById('view-lista').style.display = v==='lista'?'block':'none';
   document.getElementById('view-form').style.display  = v==='form' ?'block':'none';
   if(v==='lista') loadData();
 };
- 
+
 function setValue(id, val) {
   const el=document.getElementById(id);
   if(el) el.value=val||'';
 }
- 
+
 function fmt(v) { return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
- 
+
 function toast(msg,type='ok') {
   const t=document.getElementById('toast');
   t.textContent=msg;
@@ -378,12 +315,33 @@ function toast(msg,type='ok') {
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 </script>
- 
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-:root{--burnt:#C8511A;--amber:#E8890A;--blk:#1a0500;--bg:#0C0702;--surf:#1a1008;--surf2:#231508;--cream:#F0E6D0;--dim:#B89A70;--muted:#7A5C3A;--b2:#3E2410;--border:#2E1A08;}
+:root{--burnt:#C8511A;--amber:#E8890A;--blk:#1a0500;--bg:#0C0702;--surf:#1a1008;--surf2:#231508;--cream:#F0E6D0;--dim:#B89A70;--muted:#7A5C3A;--b2:#3E2410;--border:#2E1A08;--green:#5DCAA5;}
+body.light{--bg:#F2EDE6;--surf:#FFFFFF;--surf2:#F5F0EA;--cream:#1a0500;--dim:#3A2510;--muted:#7A6050;--b2:#D0C0A8;--border:#E0D4C0;}
+body.light .topbar{background:#FFFFFF;border-bottom-color:#D0C0A8;}
+body.light .tb-brand{color:#1a0500;}
+body.light .ftitle,.body.light .form-title{color:#1a0500;}
+body.light .orc-cli{color:#1a0500;}
+body.light .orc-tot{color:#1a0500;}
+body.light .st-v{color:#1a0500;}
+body.light .fg input,body.light .fg select,body.light .fg textarea{color:#1a0500;background:#FAFAF7;}
+body.light .srv-nm{color:#1a0500;}
+body.light .srv-card{background:#F5F0EA;}
+body.light .bd-row{color:#3A2510;}
+body.light .cat-lbl{color:var(--burnt);}
+body.light .filter-btn{color:#7A6050;}
+body.light .status-btn{color:#7A6050;}
+body.light .orc-sub{color:#7A6050;}
+body.light .sec-lbl{color:var(--burnt);}
+body.light .tot-panel{background:#FFFFFF;border-color:#D0C0A8;}
+body.light .breakdown{background:#FAFAF7;}
+body.light .total-grand{color:var(--burnt);}
+body.light .btn-out{color:#7A6050;}
+body.light #sub-val{color:#1a0500;}
 body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Georgia,serif;min-height:100vh;}
- 
+
 /* LOGIN */
 #screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;}
 .lbox{background:var(--surf);border:0.5px solid var(--b2);border-radius:12px;padding:2.5rem;width:100%;max-width:360px;text-align:center;}
@@ -396,7 +354,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .l-err{font-size:12px;color:#ff6b6b;min-height:16px;margin-bottom:8px;}
 .btn-login{width:100%;background:var(--burnt);color:var(--cream);font-family:'Special Elite',monospace;font-size:13px;letter-spacing:0.12em;padding:13px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-login:hover{background:var(--amber);color:var(--blk);}
- 
+
 /* APP */
 #screen-app{display:none;}
 .topbar{background:var(--surf);border-bottom:0.5px solid var(--b2);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
@@ -406,14 +364,16 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .u-email{font-family:'Special Elite',monospace;font-size:10px;color:var(--muted);}
 .btn-out{background:transparent;border:0.5px solid var(--b2);color:var(--muted);font-family:'Special Elite',monospace;font-size:10px;padding:5px 12px;border-radius:4px;cursor:pointer;transition:all 0.15s;}
 .btn-out:hover{border-color:var(--burnt);color:var(--burnt);}
- 
+.btn-theme{background:transparent;border:0.5px solid var(--b2);color:var(--amber);font-size:14px;width:32px;height:32px;border-radius:50%;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;}
+.btn-theme:hover{border-color:var(--amber);background:rgba(232,137,10,0.1);}
+
 /* STATS */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:1rem 1.5rem 0;}
 .st-card{background:var(--surf);border:0.5px solid var(--b2);border-radius:8px;padding:0.875rem;}
 .st-lbl{font-family:'Special Elite',monospace;font-size:8px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
 .st-val{font-family:'Special Elite',monospace;font-size:20px;color:var(--cream);}
 .st-val.g{color:#5DCAA5;}
- 
+
 /* LISTA */
 #view-lista{padding:1rem 1.5rem;}
 .toolbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
@@ -424,7 +384,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
 .filter-btn{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:0.08em;padding:4px 11px;border-radius:20px;border:0.5px solid var(--b2);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;}
 .filter-btn.act{background:var(--burnt);color:var(--cream);border-color:var(--burnt);}
-.orc-row{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:11px 14px;display:grid;grid-template-columns:46px 1fr auto auto auto;gap:10px;align-items:center;cursor:pointer;transition:all 0.15s;margin-bottom:5px;}
+.orc-row{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:11px 14px;display:grid;grid-template-columns:46px 1fr auto auto auto auto;gap:10px;align-items:center;cursor:pointer;transition:all 0.15s;margin-bottom:5px;}
 .orc-row:hover{border-color:var(--burnt);background:var(--surf2);}
 .orc-num{font-family:'Special Elite',monospace;font-size:11px;color:var(--burnt);}
 .orc-cli{font-size:13px;font-weight:700;color:var(--cream);}
@@ -434,7 +394,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .orc-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:3px;transition:color 0.15s;}
 .orc-del:hover{color:#ff6b6b;}
 .empty{text-align:center;padding:3rem;font-family:'Special Elite',monospace;font-size:13px;color:var(--muted);}
- 
+
 /* FORM */
 #view-form{padding:1rem 1.5rem;max-width:860px;}
 .fhdr{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;}
@@ -452,7 +412,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--burnt);}
 .fg textarea{resize:vertical;min-height:64px;}
 .fg select option{background:var(--surf);}
- 
+
 /* STATUS BTNS */
 .st-btns{display:flex;gap:6px;flex-wrap:wrap;}
 .status-btn{font-family:'Special Elite',monospace;font-size:11px;padding:5px 13px;border-radius:20px;border:0.5px solid var(--b2);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;}
@@ -462,7 +422,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .status-btn[data-s="pronto"].sel    {background:#5DCAA5;color:#1a0500;border-color:#5DCAA5;}
 .status-btn[data-s="entregue"].sel  {background:#ccc;color:#1a0500;border-color:#ccc;}
 .status-btn[data-s="cancelado"].sel {background:#8B0000;color:#fff;border-color:#8B0000;}
- 
+
 /* CATALOG */
 .cat-grp{margin-bottom:10px;}
 .cat-lbl{font-family:'Special Elite',monospace;font-size:9px;letter-spacing:0.15em;color:var(--burnt);text-transform:uppercase;margin-bottom:5px;}
@@ -477,7 +437,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .qty-row button:hover{border-color:var(--burnt);color:var(--burnt);}
 .qty-row span{font-family:'Special Elite',monospace;font-size:12px;color:var(--cream);}
 .qsub{margin-left:auto;color:var(--burnt) !important;}
- 
+
 /* TOTAL */
 .tot-panel{background:var(--surf);border:0.5px solid var(--b2);border-radius:7px;padding:1rem;margin-bottom:1rem;}
 .breakdown{max-height:110px;overflow-y:auto;margin-bottom:10px;}
@@ -488,31 +448,22 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 .tr-row label{font-family:'Special Elite',monospace;font-size:9px;color:var(--muted);letter-spacing:0.14em;}
 .tr-grand{font-family:'Special Elite',monospace;font-size:22px;color:var(--burnt);font-weight:700;}
 .disc-inp{width:90px;text-align:right;border:0.5px solid var(--b2);background:var(--bg);border-radius:4px;color:var(--burnt);font-family:'Special Elite',monospace;font-size:13px;padding:4px 7px;outline:none;}
- 
+
 /* ACTIONS */
 .f-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:0.5rem;}
 .btn-save{flex:1;background:var(--burnt);color:var(--cream);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.1em;padding:12px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-save:hover{background:var(--amber);color:var(--blk);}
-.btn-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
-.btn-os:hover{background:var(--amber);color:var(--blk);}
-.orc-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all 0.15s;letter-spacing:0.06em;}
-.orc-os:hover{background:var(--amber);color:var(--blk);}
 .btn-wa{background:transparent;border:0.5px solid #25D366;color:#25D366;font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
 .btn-wa:hover{background:#25D366;color:#fff;}
-.custom-row{display:grid;grid-template-columns:1fr 110px 32px;gap:8px;align-items:center;padding:8px 10px;background:var(--bg);border:0.5px dashed var(--b2);border-radius:5px;}
-.custom-name{background:transparent;border:none;border-bottom:0.5px solid var(--b2);color:var(--cream);font-size:13px;padding:4px 2px;outline:none;width:100%;font-family:'Libre Baskerville',serif;transition:border-color 0.15s;}
-.custom-name:focus{border-bottom-color:var(--burnt);}
-.custom-price-inp{background:transparent;border:none;border-bottom:0.5px solid var(--b2);color:var(--burnt);font-family:'Special Elite',monospace;font-size:13px;padding:4px 4px;outline:none;text-align:right;width:100%;transition:border-color 0.15s;}
-.custom-price-inp:focus{border-bottom-color:var(--burnt);}
-.custom-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;transition:color 0.15s;font-weight:bold;}
-.custom-del:hover{color:#ff6b6b;}
-.btn-add-custom{width:100%;background:transparent;border:0.5px dashed var(--b2);color:var(--muted);font-family:'Special Elite',monospace;font-size:11px;letter-spacing:0.08em;padding:8px;border-radius:5px;cursor:pointer;transition:all 0.15s;margin-top:2px;}
-.btn-add-custom:hover{border-color:var(--burnt);color:var(--burnt);}
- 
+.btn-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:0.08em;padding:12px 16px;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.btn-os:hover{background:var(--amber);color:var(--blk);}
+.orc-os{background:transparent;border:0.5px solid var(--amber);color:var(--amber);font-family:'Special Elite',monospace;font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all 0.15s;letter-spacing:0.06em;white-space:nowrap;}
+.orc-os:hover{background:var(--amber);color:var(--blk);}
+
 /* TOAST */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;color:#fff;font-family:'Special Elite',monospace;font-size:12px;padding:10px 18px;border-radius:6px;opacity:0;transform:translateY(10px);transition:all 0.3s;pointer-events:none;z-index:999;letter-spacing:0.08em;}
 .toast.show{opacity:1;transform:translateY(0);}
- 
+
 @media(max-width:640px){
   .stats-row{grid-template-columns:1fr 1fr;}
   .g2,.g3{grid-template-columns:1fr;}
@@ -522,7 +473,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 </style>
 </head>
 <body>
- 
+
 <!-- LOGIN -->
 <div id="screen-login">
   <div class="lbox">
@@ -535,7 +486,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
     <button class="btn-login" onclick="doLogin()">Entrar</button>
   </div>
 </div>
- 
+
 <!-- APP -->
 <div id="screen-app">
   <div class="topbar">
@@ -545,14 +496,14 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
       <button class="btn-out" onclick="doLogout()">Sair</button>
     </div>
   </div>
- 
+
   <div class="stats-row">
     <div class="st-card"><div class="st-lbl">Total</div><div class="st-val" id="st-total">0</div></div>
     <div class="st-card"><div class="st-lbl">Pendentes</div><div class="st-val" id="st-pend">0</div></div>
     <div class="st-card"><div class="st-lbl">Em andamento</div><div class="st-val" id="st-and">0</div></div>
     <div class="st-card"><div class="st-lbl">Faturado</div><div class="st-val g" id="st-fat">R$ 0,00</div></div>
   </div>
- 
+
   <!-- LISTA -->
   <div id="view-lista">
     <div style="padding:1rem 1.5rem 0;">
@@ -571,14 +522,14 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
     </div>
     <div style="padding:0 1.5rem;" id="lista-body"></div>
   </div>
- 
+
   <!-- FORM -->
   <div id="view-form" style="display:none;">
     <div class="fhdr">
       <button class="btn-back" onclick="showView('lista')">&larr; Voltar</button>
       <div class="ftitle" id="form-title">Novo Orcamento</div>
     </div>
- 
+
     <!-- STATUS -->
     <div class="fsec">
       <div class="sec-lbl">Status</div>
@@ -591,7 +542,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
         <button type="button" class="status-btn"     data-s="cancelado" onclick="setStatusBtn(this)">Cancelado</button>
       </div>
     </div>
- 
+
     <!-- CLIENTE -->
     <div class="fsec">
       <div class="sec-lbl">1. Cliente</div>
@@ -601,7 +552,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
       </div>
       <div class="fg"><label>E-mail</label><input type="email" id="f-email" placeholder="email@exemplo.com"></div>
     </div>
- 
+
     <!-- INSTRUMENTO -->
     <div class="fsec">
       <div class="sec-lbl">2. Instrumento</div>
@@ -621,24 +572,19 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
         <div class="fg"><label>Modelo</label><input type="text" id="f-modelo" placeholder="Ex: TG-530"></div>
       </div>
     </div>
- 
+
     <!-- PROBLEMA -->
     <div class="fsec">
       <div class="sec-lbl">3. Problema / Diagnostico</div>
       <div class="fg"><textarea id="f-prob" placeholder="Descreva o problema e o diagnostico..."></textarea></div>
     </div>
- 
+
     <!-- SERVICOS -->
     <div class="fsec">
       <div class="sec-lbl">4. Servicos</div>
       <div id="catalog"></div>
-      <div class="cat-grp" style="margin-top:10px;">
-        <div class="cat-lbl">Servico Personalizado</div>
-        <div id="custom-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
-        <button type="button" class="btn-add-custom" onclick="addCustomRow()">+ Adicionar servico personalizado</button>
-      </div>
     </div>
- 
+
     <!-- TOTAL -->
     <div class="fsec">
       <div class="sec-lbl">5. Financeiro</div>
@@ -652,7 +598,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
         <div class="tr-row"><label>TOTAL</label><span class="tr-grand" id="total-val">R$ 0,00</span></div>
       </div>
     </div>
- 
+
     <!-- PRAZO -->
     <div class="fsec">
       <div class="sec-lbl">6. Prazo e Observacoes</div>
@@ -661,45 +607,61 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
         <div class="fg"><label>Observacoes</label><input type="text" id="f-obs" placeholder="Anotacoes adicionais..."></div>
       </div>
     </div>
- 
+
     <div class="f-actions">
       <button class="btn-wa" onclick="sendWA()">WhatsApp</button>
-      <button class="btn-os" onclick="gerarOS(editingId)">Gerar OS PDF</button>
+      <button class="btn-os" onclick="gerarOS()">Gerar OS PDF</button>
       <button class="btn-save" onclick="saveOrc()"><span id="btn-save-txt">Salvar orcamento</span></button>
     </div>
   </div>
 </div>
- 
+
 <div class="toast" id="toast"></div>
- 
+
 <script>
-// ── GERAR OS PDF ──
-window.gerarOS = function(id) {
-  const o = id && typeof orcamentos !== 'undefined'
-    ? orcamentos.find(x=>x.id===id)
-    : buildCurrentOrc();
-  if (!o) { alert('Salve o orcamento primeiro.'); return; }
- 
+// ── TEMA ──
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent = isLight ? '🌙' : '☀';
+  localStorage.setItem('ag_tema', isLight ? 'light' : 'dark');
+}
+(function(){
+  if (localStorage.getItem('ag_tema') === 'light') {
+    document.body.classList.add('light');
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = '🌙';
+  }
+})();
+
+// ── GERAR OS ──
+function gerarOSById(id) {
+  const o = (typeof orcamentos !== 'undefined' ? orcamentos : []).find(x=>x.id===id);
+  if (!o) { alert('Orcamento nao encontrado.'); return; }
+  gerarOS(o);
+}
+
+function gerarOS(oParam) {
+  // If called from form button, build from current fields
+  const o = oParam || buildFormOrc();
+  if (!o) { alert('Preencha pelo menos o nome do cliente.'); return; }
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
- 
+
   const W=210, ML=18, CW=174;
   let y=14;
   const BURNT=[200,81,26], BLK=[26,5,0], CREAM=[240,230,208], MUTED=[160,128,96];
   const LIGHT=[245,237,224], ALT=[251,245,236], AMBER=[232,137,10], DBG=[46,26,8];
- 
-  // Helvetica is built-in jsPDF and supports Portuguese
+
   const bold   = (sz,c=BLK)=>{ doc.setFont('helvetica','bold');   doc.setFontSize(sz); doc.setTextColor(...c); };
   const normal = (sz,c=BLK)=>{ doc.setFont('helvetica','normal'); doc.setFontSize(sz); doc.setTextColor(...c); };
-  const italic = (sz,c=BLK)=>{ doc.setFont('helvetica','italic'); doc.setFontSize(sz); doc.setTextColor(...c); };
   const hl     = (yy,c=BURNT,t=0.5)=>{ doc.setDrawColor(...c); doc.setLineWidth(t); doc.line(ML,yy,ML+CW,yy); };
   const fill   = (x,yy,w,h,c)=>{ doc.setFillColor(...c); doc.setDrawColor(0,0,0,0); doc.rect(x,yy,w,h,'F'); };
   const fmtR   = v=>'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
- 
-  // ── HEADER ──
-  bold(26,BLK);   doc.text('Alexandre Guitars', ML, y);
-  normal(9,BURNT); doc.text('Reparo · Customizacao · Manutencao de Instrumentos de Corda', ML, y+7);
- 
+
+  // HEADER
+  bold(26,BLK);  doc.text('Alexandre Guitars', ML, y);
+  normal(9,BURNT); doc.text('Reparo - Customizacao - Manutencao de Instrumentos de Corda', ML, y+7);
   const num = '#'+String(o.numero||0).padStart(4,'0');
   bold(8,BURNT);   doc.text('ORDEM DE SERVICO', ML+CW, y, {align:'right'});
   bold(14,BLK);    doc.text(num, ML+CW, y+9, {align:'right'});
@@ -707,142 +669,111 @@ window.gerarOS = function(id) {
   doc.text('Data: '+new Date().toLocaleDateString('pt-BR'), ML+CW, y+15, {align:'right'});
   doc.text('Status: '+(o.status||'pendente').toUpperCase(), ML+CW, y+20, {align:'right'});
   y+=24; hl(y,BURNT,0.9); y+=5;
- 
-  // ── SECTION ──
-  const sec = (t,yy) => {
-    fill(ML,yy-4,CW,7.5,DBG);
-    bold(7,CREAM);
-    doc.text(t.toUpperCase(), ML+3, yy+1);
-    return yy+8;
-  };
- 
-  // ── FIELD ──
-  const field = (lbl,val,x,yy,w) => {
-    normal(7,MUTED); doc.text(lbl, x, yy);
-    bold(9,BLK);     doc.text(String(val||'--').substring(0,55), x, yy+5.5);
-    doc.setDrawColor(...MUTED); doc.setLineWidth(0.2);
-    doc.line(x, yy+7, x+w, yy+7);
-  };
- 
+
+  const sec = (t,yy)=>{ fill(ML,yy-4,CW,7.5,DBG); bold(7,CREAM); doc.text(t.toUpperCase(),ML+3,yy+1); return yy+8; };
+  const field = (lbl,val,x,yy,w)=>{ normal(7,MUTED); doc.text(lbl,x,yy); bold(9,BLK); doc.text(String(val||'--').substring(0,55),x,yy+5.5); doc.setDrawColor(...MUTED); doc.setLineWidth(0.2); doc.line(x,yy+7,x+w,yy+7); };
+
   // 1. CLIENTE
-  y = sec('1. Dados do Cliente', y);
-  field('Nome completo', o.cliente, ML, y, CW/2-4);
-  field('WhatsApp / Telefone', o.telefone, ML+CW/2+4, y, CW/2-4);
-  y+=14;
-  field('E-mail', o.email, ML, y, CW);
-  y+=14;
- 
+  y=sec('1. Dados do Cliente',y);
+  field('Nome completo',o.cliente,ML,y,CW/2-4);
+  field('WhatsApp / Telefone',o.telefone,ML+CW/2+4,y,CW/2-4);
+  y+=14; field('E-mail',o.email,ML,y,CW); y+=14;
+
   // 2. INSTRUMENTO
-  y = sec('2. Instrumento', y);
-  const col = CW/3;
-  field('Tipo', o.tipoInstrumento, ML, y, col-4);
-  field('Marca', o.marca, ML+col+2, y, col-4);
-  field('Modelo', o.modelo, ML+col*2+4, y, col-4);
+  y=sec('2. Instrumento',y);
+  const col=CW/3;
+  field('Tipo',o.tipoInstrumento,ML,y,col-4);
+  field('Marca',o.marca,ML+col+2,y,col-4);
+  field('Modelo',o.modelo,ML+col*2+4,y,col-4);
   y+=14;
- 
+
   // 3. DIAGNOSTICO
-  y = sec('3. Diagnostico / Problema Relatado', y);
+  y=sec('3. Diagnostico / Problema Relatado',y);
   normal(8.5,BLK);
-  const pl = doc.splitTextToSize(o.problema||'Nao informado.', CW-4);
-  doc.text(pl, ML+2, y+1);
-  y += Math.max(12, pl.length*5) + 4;
- 
+  const pl=doc.splitTextToSize(o.problema||'Nao informado.',CW-4);
+  doc.text(pl,ML+2,y+1); y+=Math.max(12,pl.length*5)+4;
+
   // 4. SERVICOS
-  y = sec('4. Servicos Realizados', y);
-  fill(ML,y-1,CW,7,DBG);
-  bold(7,CREAM);
-  doc.text('Servico / Descricao', ML+3, y+4);
-  doc.text('Qtd', ML+CW-30, y+4, {align:'right'});
-  doc.text('Valor', ML+CW-2, y+4, {align:'right'});
+  y=sec('4. Servicos Realizados',y);
+  fill(ML,y-1,CW,7,DBG); bold(7,CREAM);
+  doc.text('Servico / Descricao',ML+3,y+4);
+  doc.text('Qtd',ML+CW-30,y+4,{align:'right'});
+  doc.text('Valor',ML+CW-2,y+4,{align:'right'});
   y+=8;
- 
-  (o.servicos||[]).forEach((s,i) => {
-    if (y > 260) { doc.addPage(); y=20; }
-    if (i%2===0) fill(ML, y-1, CW, 7.5, ALT);
-    bold(8.5,BLK);   doc.text(s.name||'', ML+3, y+4);
-    normal(8,MUTED); doc.text(String(s.qty||1)+'x', ML+CW-30, y+4, {align:'right'});
-    bold(8.5,BURNT);  doc.text(fmtR(s.price*(s.qty||1)), ML+CW-2, y+4, {align:'right'});
+
+  (o.servicos||[]).forEach((s,i)=>{
+    if(y>260){doc.addPage();y=20;}
+    if(i%2===0) fill(ML,y-1,CW,7.5,ALT);
+    bold(8.5,BLK); doc.text(s.name||'',ML+3,y+4);
+    normal(8,MUTED); doc.text(String(s.qty||1)+'x',ML+CW-30,y+4,{align:'right'});
+    bold(8.5,BURNT); doc.text(fmtR(s.price*(s.qty||1)),ML+CW-2,y+4,{align:'right'});
     doc.setDrawColor(...LIGHT); doc.setLineWidth(0.2);
-    doc.line(ML, y+6.5, ML+CW, y+6.5);
-    y+=8;
+    doc.line(ML,y+6.5,ML+CW,y+6.5); y+=8;
   });
- 
-  if (!(o.servicos||[]).length) {
-    normal(8,MUTED); doc.text('Nenhum servico registrado.', ML+3, y+4); y+=10;
-  }
+
+  if(!(o.servicos||[]).length){normal(8,MUTED);doc.text('Nenhum servico registrado.',ML+3,y+4);y+=10;}
   y+=3;
- 
-  if ((o.desconto||0)>0) {
-    fill(ML,y-1,CW,7,LIGHT); normal(8,MUTED); doc.text('Subtotal', ML+3, y+4);
-    bold(8,BLK); doc.text(fmtR(o.subtotal||0), ML+CW-2, y+4, {align:'right'}); y+=8;
-    fill(ML,y-1,CW,7,LIGHT); normal(8,MUTED); doc.text('Desconto', ML+3, y+4);
-    bold(8,BURNT); doc.text('- '+fmtR(o.desconto||0), ML+CW-2, y+4, {align:'right'}); y+=8;
+
+  if((o.desconto||0)>0){
+    fill(ML,y-1,CW,7,LIGHT);normal(8,MUTED);doc.text('Subtotal',ML+3,y+4);
+    bold(8,BLK);doc.text(fmtR(o.subtotal||0),ML+CW-2,y+4,{align:'right'});y+=8;
+    fill(ML,y-1,CW,7,LIGHT);normal(8,MUTED);doc.text('Desconto',ML+3,y+4);
+    bold(8,BURNT);doc.text('- '+fmtR(o.desconto||0),ML+CW-2,y+4,{align:'right'});y+=8;
   }
- 
+
   fill(ML,y-1,CW,9,BLK);
-  bold(9,CREAM); doc.text('TOTAL', ML+4, y+5);
-  bold(12,AMBER); doc.text(fmtR(o.total||0), ML+CW-2, y+5, {align:'right'});
+  bold(9,CREAM);doc.text('TOTAL',ML+4,y+5);
+  bold(12,AMBER);doc.text(fmtR(o.total||0),ML+CW-2,y+5,{align:'right'});
   y+=13;
- 
+
   // 5. PRAZO
-  if (y>240) { doc.addPage(); y=20; }
-  y = sec('5. Prazo e Condicoes', y);
-  field('Previsao de entrega', o.prazo||'A combinar', ML, y, CW/2-4);
-  y+=14;
-  if (o.obs) {
-    normal(7,MUTED); doc.text('Observacoes:', ML, y);
-    normal(8,BLK);
-    const ol = doc.splitTextToSize(o.obs, CW-2);
-    doc.text(ol, ML, y+5);
-    y += ol.length*4.5+8;
-  }
- 
+  if(y>240){doc.addPage();y=20;}
+  y=sec('5. Prazo e Condicoes',y);
+  field('Previsao de entrega',o.prazo||'A combinar',ML,y,CW/2-4);y+=14;
+  if(o.obs){normal(7,MUTED);doc.text('Observacoes:',ML,y);normal(8,BLK);const ol=doc.splitTextToSize(o.obs,CW-2);doc.text(ol,ML,y+5);y+=ol.length*4.5+8;}
+
   // 6. TERMOS
-  if (y>235) { doc.addPage(); y=20; }
-  y = sec('6. Termos e Garantia', y);
+  if(y>235){doc.addPage();y=20;}
+  y=sec('6. Termos e Garantia',y);
   normal(7.5,MUTED);
-  [
-    '- Orcamento valido por 15 dias a partir da data de emissao.',
-    '- Garantia de 30 dias em todos os servicos realizados.',
-    '- Pecas e materiais adicionais cobrados separadamente mediante aprovacao previa.',
-    '- O prazo de entrega inicia apos a aprovacao formal do orcamento.',
-  ].forEach((t,i) => doc.text(t, ML+2, y+i*5));
+  ['- Orcamento valido por 15 dias.','- Garantia de 30 dias em todos os servicos.','- Pecas e materiais cobrados separadamente.','- Prazo inicia apos aprovacao do orcamento.']
+    .forEach((t,i)=>doc.text(t,ML+2,y+i*5));
   y+=26;
- 
+
   // 7. ASSINATURAS
-  if (y>245) { doc.addPage(); y=20; }
-  y = sec('7. Assinaturas', y);
-  y+=14;
-  const sw = CW/2-12;
-  doc.setDrawColor(...MUTED); doc.setLineWidth(0.4);
-  doc.line(ML, y, ML+sw, y);
-  doc.line(ML+sw+24, y, ML+CW, y);
+  if(y>245){doc.addPage();y=20;}
+  y=sec('7. Assinaturas',y);y+=14;
+  const sw=CW/2-12;
+  doc.setDrawColor(...MUTED);doc.setLineWidth(0.4);
+  doc.line(ML,y,ML+sw,y);doc.line(ML+sw+24,y,ML+CW,y);
   normal(7,MUTED);
-  doc.text('Assinatura do Cliente',       ML+sw/2,       y+4.5, {align:'center'});
-  doc.text('Alexandre Guitars - Responsavel', ML+sw+24+sw/2, y+4.5, {align:'center'});
-  doc.text('Data: ____/____/________', ML+sw/2,       y+9, {align:'center'});
-  doc.text('Data: ____/____/________', ML+sw+24+sw/2, y+9, {align:'center'});
- 
+  doc.text('Assinatura do Cliente',ML+sw/2,y+4.5,{align:'center'});
+  doc.text('Alexandre Guitars - Responsavel',ML+sw+24+sw/2,y+4.5,{align:'center'});
+  doc.text('Data: ____/____/________',ML+sw/2,y+9,{align:'center'});
+  doc.text('Data: ____/____/________',ML+sw+24+sw/2,y+9,{align:'center'});
+
   // FOOTER
-  hl(287-4, BURNT, 0.5);
-  normal(7,MUTED);
-  doc.text('Alexandre Guitars  |  @alexandreguitarsluthieria  |  (11) 99339-4130  |  contato@alexandreguitars.com.br', W/2, 287, {align:'center'});
-  doc.text('Garantia de 30 dias em todos os servicos  |  Lapa - Sao Paulo, SP', W/2, 291, {align:'center'});
- 
+  hl(287-4,BURNT,0.5);normal(7,MUTED);
+  doc.text('Alexandre Guitars  |  @alexandreguitarsluthieria  |  (11) 99339-4130  |  contato@alexandreguitars.com.br',W/2,287,{align:'center'});
+  doc.text('Garantia de 30 dias  |  Lapa - Sao Paulo, SP',W/2,291,{align:'center'});
+
   doc.save('OS-'+num.replace('#','')+'-'+(o.cliente||'cliente').replace(/[^a-zA-Z0-9]/g,'-')+'.pdf');
-};
- 
-window.buildCurrentOrc = function() {
+}
+
+function buildFormOrc() {
   const nome = document.getElementById('f-nome')?.value?.trim();
   if (!nome) return null;
   const desc = parseFloat(document.getElementById('f-desc')?.value)||0;
-  const srvArr = [
-    ...Object.entries(typeof selectedSrvs!=='undefined'?selectedSrvs:{}).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty})),
-    ...Object.entries(typeof customRows!=='undefined'?customRows:{}).filter(([id,s])=>s.price>0).map(([id,s])=>({id,name:s.name||'Servico personalizado',price:s.price,qty:1})),
-  ];
+  const presets = typeof selectedSrvs!=='undefined'
+    ? Object.entries(selectedSrvs).map(([id,s])=>({id,name:s.name,price:s.price,qty:s.qty})) : [];
+  const customs = typeof customRows!=='undefined'
+    ? Object.entries(customRows).filter(([id,s])=>s.price>0).map(([id,s])=>({id,name:s.name||'Servico personalizado',price:s.price,qty:1})) : [];
+  const srvArr = [...presets, ...customs];
   const sub = srvArr.reduce((a,s)=>a+s.price*(s.qty||1),0);
+  const num = typeof orcamentos!=='undefined' && orcamentos.length ? (orcamentos[0].numero||0)+1 : 1;
   return {
-    numero: (typeof orcamentos!=='undefined'&&orcamentos[0]?.numero||0)+1,
+    numero: typeof editingId!=='undefined' && editingId
+      ? (orcamentos.find(x=>x.id===editingId)?.numero||num) : num,
     cliente: nome,
     telefone: document.getElementById('f-tel')?.value||'',
     email:    document.getElementById('f-email')?.value||'',
@@ -853,10 +784,11 @@ window.buildCurrentOrc = function() {
     prazo:    document.getElementById('f-prazo')?.value||'',
     obs:      document.getElementById('f-obs')?.value||'',
     desconto: desc, servicos: srvArr, subtotal: sub,
-    total: Math.max(0, sub-desc),
+    total: Math.max(0,sub-desc),
     status: document.querySelector('.status-btn.sel')?.dataset.s||'pendente',
   };
-};
+}
 </script>
+
 </body>
 </html>
