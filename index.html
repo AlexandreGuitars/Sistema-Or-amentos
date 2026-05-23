@@ -492,6 +492,7 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
   <div class="topbar">
     <div class="tb-brand"><span>&#10022;</span> Alexandre Guitars &mdash; Orcamentos</div>
     <div class="tb-right">
+      <button class="btn-theme" id="theme-btn" onclick="toggleTheme()" title="Alternar tema claro/escuro">&#9728;</button>
       <span class="u-email" id="user-email"></span>
       <button class="btn-out" onclick="doLogout()">Sair</button>
     </div>
@@ -622,16 +623,23 @@ body{background:var(--bg);color:var(--cream);font-family:'Libre Baskerville',Geo
 // ── TEMA ──
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
-  document.getElementById('theme-btn').textContent = isLight ? '🌙' : '☀';
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.innerHTML = isLight ? '&#127769;' : '&#9728;';
   localStorage.setItem('ag_tema', isLight ? 'light' : 'dark');
 }
+// Apply saved theme immediately on load
 (function(){
   if (localStorage.getItem('ag_tema') === 'light') {
     document.body.classList.add('light');
-    const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = '🌙';
   }
 })();
+// Update button text after DOM ready
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('theme-btn');
+  if (btn && localStorage.getItem('ag_tema') === 'light') {
+    btn.innerHTML = '&#127769;';
+  }
+});
 
 // ── GERAR OS ──
 function gerarOSById(id) {
